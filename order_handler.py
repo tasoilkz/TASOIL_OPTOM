@@ -9,7 +9,7 @@ from keyboards import (
     get_company_keyboard,
     get_address_keyboard,
     get_phone_keyboard,
-    get_main_menu_keyboard  # 👈 Добавили импорт главного меню
+    get_main_menu_keyboard  # 👈 Импорт главного меню
 )
 
 order_router = Router()
@@ -117,9 +117,30 @@ async def process_address(message: types.Message, state: FSMContext):
 
 @order_router.message(OrderForm.waiting_for_items)
 async def process_items(message: types.Message, state: FSMContext):
-    order_data = await state.get_data()
-    order_items = message.text
+    order_text = message.text.strip()
     
+    # 1. Проверяем минимальную длину текста заказа
+    if len(order_text) < 3:
+        await message.answer(
+            "⚠️ Пожалуйста, напишите ваш заказ более подробно (укажите наименование/артикул и количество):\n\n"
+            "*(Например: `SM106 — 2 шт` или `ZIC 5W-30 4л — 1 канистра`)*",
+            parse_mode="Markdown"
+        )
+        return
+
+    # 2. Проверяем наличие цифр (цифры нужны для артикулов, объемов и количества штук)
+    has_numbers = any(char.isdigit() for char in order_text)
+    
+    if not has_numbers:
+        await message.answer(
+            "⚠️ В вашем заказе **отсутствуют цифры** (не указан артикул, объем или количество).\n\n"
+            "Пожалуйста, уточните детали заказа (например: `Фильтр Tokiro — 5 шт` или `Масло 5W-30 4л`):",
+            parse_mode="Markdown"
+        )
+        return
+
+    # Если всё указано корректно, формируем и отправляем заявку администратору[cite: 3]
+    order_data = await state.get_data()
     user_info = message.from_user
     username = f"@{user_info.username}" if user_info.username else "нет username"
 
@@ -130,7 +151,7 @@ async def process_items(message: types.Message, state: FSMContext):
         f"📞 **Телефон:** `{order_data.get('phone')}`\n"
         f"📍 **Адрес доставки:** {order_data.get('address')}\n"
         f"💬 **Telegram:** {username} (ID: `{user_info.id}`)\n\n"
-        f"🛒 **Заказ:**\n{order_items}"
+        f"🛒 **Заказ:**\n{order_text}"
     )
 
     try:
@@ -138,7 +159,7 @@ async def process_items(message: types.Message, state: FSMContext):
     except Exception as e:
         print(f"❌ Ошибка отправки заявки админу: {e}")
 
-    # Возвращаем Главное меню пользователю!
+    # Возвращаем Главное меню пользователю[cite: 3]!
     await message.answer(
         "✅ **Ваша заявка успешно отправлена!**\n\n"
         "Наш менеджер свяжется с вами в ближайшее время для уточнения деталей и подтверждения заказа.\n\n"
