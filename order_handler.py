@@ -8,7 +8,8 @@ from keyboards import (
     get_cancel_keyboard,
     get_company_keyboard,
     get_address_keyboard,
-    get_phone_keyboard
+    get_phone_keyboard,
+    get_main_menu_keyboard  # 👈 Добавили импорт главного меню
 )
 
 order_router = Router()
@@ -33,7 +34,12 @@ async def start_order_process(callback: CallbackQuery, state: FSMContext):
 @order_router.callback_query(F.data == "cancel_order")
 async def cancel_order(callback: CallbackQuery, state: FSMContext):
     await state.clear()
-    await callback.message.answer("❌ Оформление заявки отменено.", parse_mode="Markdown")
+    # Возвращаем Главное меню при отмене
+    await callback.message.answer(
+        "❌ Оформление заявки отменено.", 
+        reply_markup=get_main_menu_keyboard(),
+        parse_mode="Markdown"
+    )
     await callback.answer()
 
 @order_router.message(OrderForm.waiting_for_name)
@@ -132,10 +138,12 @@ async def process_items(message: types.Message, state: FSMContext):
     except Exception as e:
         print(f"❌ Ошибка отправки заявки админу: {e}")
 
+    # Возвращаем Главное меню пользователю!
     await message.answer(
         "✅ **Ваша заявка успешно отправлена!**\n\n"
         "Наш менеджер свяжется с вами в ближайшее время для уточнения деталей и подтверждения заказа.\n\n"
         f"Для срочных вопросов:\n{CONTACT_TEXT}",
+        reply_markup=get_main_menu_keyboard(),
         parse_mode="Markdown"
     )
     
