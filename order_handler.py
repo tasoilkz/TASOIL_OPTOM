@@ -98,7 +98,7 @@ async def set_pickup_address(callback: CallbackQuery, state: FSMContext):
     await state.set_state(OrderForm.waiting_for_items)
     await callback.message.answer(
         "Шаг 5 из 5: **Перечислите список нужных товаров**\n\n"
-        "Укажите бренд, наименование, объем или количество *(например: ZIC 5W-30 4л — 2 канистры, SM106 — 10 шт)*:",
+        "Укажите бренд, наименование, объем или количество *(например: Yacco 5W-30 4л — 2 канистры, SM106 — 10 шт)*:",
         reply_markup=ReplyKeyboardRemove(),
         parse_mode="Markdown"
     )
@@ -110,32 +110,44 @@ async def process_address(message: types.Message, state: FSMContext):
     await state.set_state(OrderForm.waiting_for_items)
     await message.answer(
         "Шаг 5 из 5: **Перечислите список нужных товаров**\n\n"
-        "Укажите бренд, наименование, объем или количество *(например: ZIC 5W-30 4л — 2 канистры, SM106 — 10 шт)*:",
+        "Укажите бренд, наименование, объем или количество *(например: Yacco 5W-30 4л — 2 канистры, SM106 — 10 шт)*:",
         reply_markup=ReplyKeyboardRemove(),
         parse_mode="Markdown"
     )
 
 @order_router.message(OrderForm.waiting_for_items)
 async def process_items(message: types.Message, state: FSMContext):
-    order_text = message.text.strip()
-    order_lower = order_text.lower()
+    raw_text = message.text.strip()
     
-    # 1. Проверяем минимальную длину текста заказа[cite: 4]
-    if len(order_text) < 3:
+    # Исправляем русскую букву «В» (и «в») в вязкости на английскую «W», чтобы бот понимал «5В30» -> «5W30»
+    normalized_text = (
+        raw_text.replace("5В", "5W")
+                .replace("10В", "10W")
+                .replace("0В", "0W")
+                .replace("15В", "15W")
+                .replace("20В", "20W")
+                .replace("5в", "5W")
+                .replace("10в", "10W")
+                .replace("0в", "0W")
+    )
+    order_lower = normalized_text.lower()
+    
+    # 1. Проверяем минимальную длину текста заказа
+    if len(raw_text) < 3:
         await message.answer(
             "⚠️ Пожалуйста, напишите ваш заказ более подробно (укажите бренд, название товара и количество):\n\n"
-            "*(Например: `ZIC 5W-30 4л — 2 канистры`)*",
+            "*(Например: `Yacco 5W-30 4л — 2 канистры`)*",
             parse_mode="Markdown"
         )
         return
 
-    # 2. Проверяем наличие цифр (цифры нужны для объема канистры или количества штук)[cite: 4]
-    has_numbers = any(char.isdigit() for char in order_text)
+    # 2. Проверяем наличие цифр (цифры нужны для объема канистры или количества штук)
+    has_numbers = any(char.isdigit() for char in normalized_text)
     
     if not has_numbers:
         await message.answer(
             "⚠️ В вашем заказе **отсутствуют цифры** (не указан объем или количество штук).\n\n"
-            "Пожалуйста, уточните детали заказа (например: `ZIC 5W-30 4л — 2 шт`):",
+            "Пожалуйста, уточните детали заказа (например: `Yacco 5W-30 4л — 2 шт`):",
             parse_mode="Markdown"
         )
         return
@@ -148,18 +160,24 @@ async def process_items(message: types.Message, state: FSMContext):
             if isinstance(brand_info, dict) and "name" in brand_info:
                 all_brands.append(str(brand_info["name"]).lower())
 
+    # Дополнительно разрешаем кириллическое написание бренда «якко» для Yacco
+    extra_aliases = {"yacco": ["якко", "yacco"]}
+    for eng_brand, rus_variants in extra_aliases.items():
+        if eng_brand in all_brands:
+            all_brands.extend(rus_variants)
+
     # Проверяем, указал ли клиент марку/бренд
     brand_found = any(brand in order_lower for brand in all_brands)
 
     if not brand_found:
         await message.answer(
             "⚠️ Вы указали параметры, но **забыли написать бренд** (марку масла или товара).\n\n"
-            "Пожалуйста, укажите бренд (например: `ZIC 5W-30 4л — 2 шт`):",
+            "Пожалуйста, укажите бренд (например: `Yacco 5W-30 4л — 2 шт`):",
             parse_mode="Markdown"
         )
         return
 
-    # Если всё указано корректно, формируем и отправляем заявку администратору[cite: 3]
+    # Сохраняем в заявку исходный текст клиента (или с исправленной буквой W, чтобы админу было привычнее)
     order_data = await state.get_data()
     user_info = message.from_user
     username = f"@{user_info.username}" if user_info.username else "нет username"
@@ -171,7 +189,7 @@ async def process_items(message: types.Message, state: FSMContext):
         f"📞 **Телефон:** `{order_data.get('phone')}`\n"
         f"📍 **Адрес доставки:** {order_data.get('address')}\n"
         f"💬 **Telegram:** {username} (ID: `{user_info.id}`)\n\n"
-        f"🛒 **Заказ:**\n{order_text}"
+        f"🛒 **Заказ:**\n{normalized_text}"
     )
 
     try:
@@ -179,7 +197,7 @@ async def process_items(message: types.Message, state: FSMContext):
     except Exception as e:
         print(f"❌ Ошибка отправки заявки админу: {e}")
 
-    # Возвращаем Главное меню пользователю[cite: 3]!
+    # Возвращаем Главное меню пользователю!
     await message.answer(
         "✅ **Ваша заявка успешно отправлена!**\n\n"
         "Наш менеджер свяжется с вами в ближайшее время для уточнения деталей и подтверждения заказа.\n\n"
