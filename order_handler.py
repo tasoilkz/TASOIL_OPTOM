@@ -126,7 +126,7 @@ async def process_address(message: types.Message, state: FSMContext):
 async def process_items(message: types.Message, state: FSMContext):
     raw_text = message.text.strip()
     
-    # Исправляем русскую букву «В» (и «в») в вязкости на английскую «W»
+    # Исправляем русскую букву «В» (и «в») в вязкости на английскую «W» (например, «5В30» -> «5W30»)
     normalized_text = (
         raw_text.replace("5В", "5W")
                 .replace("10В", "10W")
@@ -169,11 +169,15 @@ async def process_items(message: types.Message, state: FSMContext):
             if isinstance(brand_info, dict) and "name" in brand_info:
                 all_brands.append(str(brand_info["name"]).lower())
 
-    # Дополнительно разрешаем кириллическое написание бренда «якко» для Yacco
-    extra_aliases = {"yacco": ["якко", "yacco"]}
+    # Добавляем варианты написания брендов и их русские/возможные аналоги
+    extra_aliases = {
+        "yacco": ["якко", "яко", "ясо", "yacco", "yaco", "якo"],
+        "nissan": ["ниссан", "нисан", "nissan", "nissn", "nisan"],
+        "toyota": ["тойота", "тайота", "тойоа", "toyota", "toyta", "toiota"],
+        "zeo": ["зео", "zeo"]
+    }
     for eng_brand, rus_variants in extra_aliases.items():
-        if eng_brand in all_brands:
-            all_brands.extend(rus_variants)
+        all_brands.extend(rus_variants)
 
     # Проверяем, указал ли клиент марку/бренд
     brand_found = any(brand in order_lower for brand in all_brands)
