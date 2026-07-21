@@ -29,6 +29,13 @@ PRICE_CATEGORIES = {
             "warning": "",
             "desc": "Премиальное французское масло с более чем 100-летней историей и спортивным наследием. Высочайшая термостабильность и защита в экстремальных условиях.",
             "cols": {"name": 0, "art": 1, "vol": 2, "price": -1}
+        },
+        "zeo": {  # 🟢 ЧИСТЫЙ ПРАЙС ZEO
+            "name": "ZEO",
+            "file": "files/ZEO_Price.xlsx",
+            "warning": "⚠️ Цены указаны в тенге.\n",
+            "desc": "Высококачественные моторные и трансмиссионные масла ZEO.",
+            "cols": {"art": 0, "name": 1, "vol": 3, "price": 5}
         }
     },
     "filter": {
@@ -39,7 +46,7 @@ PRICE_CATEGORIES = {
             "desc": "Качественные фильтрующие элементы Tokiro для надёжной защиты двигателя.",
             "cols": {"art": 0, "name": 1, "cross": 2, "price": 3}
         },
-        "ev_filters": {  # 👈 НОВЫЙ ПРАЙС ДЛЯ ЭЛЕКТРОМОБИЛЕЙ И ГИБРИДОВ
+        "ev_filters": {
             "name": "⚡️ Электромобили (Tesla, Zeekr, Lixiang)",
             "file": "files/Prais_elekro.xlsx",
             "warning": "",
