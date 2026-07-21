@@ -4,7 +4,7 @@ import pandas as pd
 from aiohttp import web
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
-from aiogram.types import FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from aiogram.types import FSInputFile, CallbackQuery
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
@@ -17,13 +17,21 @@ from config import (
 )
 from gloves_handler import send_gloves_info, send_gloves_file
 from promo_handler import promo_router, clean_markdown
+from order_handler import order_router
+from keyboards import (
+    get_main_menu_keyboard,
+    get_brands_keyboard,
+    get_back_keyboard,
+    get_brand_selected_keyboard
+)
 
 # Инициализация бота с токеном из config.py
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN))
 dp = Dispatcher()
 
-# Подключаем роутер акций Liqui Moly
+# Подключаем роутер акций Liqui Moly и роутер оформления заказов
 dp.include_router(promo_router)
+dp.include_router(order_router)
 
 user_selection = {}
 
@@ -46,39 +54,6 @@ async def safe_edit_text(callback: CallbackQuery, text: str, reply_markup=None, 
         except Exception:
             pass
         await callback.message.answer(text, reply_markup=reply_markup, parse_mode=parse_mode)
-
-def get_main_menu_keyboard():
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔥 Акции и спецпредложения (Liqui Moly)", callback_data="cat_promo")],
-        [InlineKeyboardButton(text="🛢 Масла и автохимия", callback_data="cat_oil")],
-        [InlineKeyboardButton(text="🔍 Фильтра", callback_data="cat_filter")],
-        [InlineKeyboardButton(text="🧤 Перчатки оптом", callback_data="cat_gloves")]
-    ])
-
-def get_brands_keyboard(category):
-    keyboard_buttons = []
-    if category in PRICE_CATEGORIES:
-        for brand_key, info in PRICE_CATEGORIES[category].items():
-            keyboard_buttons.append([InlineKeyboardButton(text=f"📌 {info['name']}", callback_data=f"brand_{brand_key}")])
-            
-    all_text = "🔎 Искать по ВСЕМ брендам фильтров" if category == "filter" else "🔎 Искать по ВСЕМ брендам масел"
-    all_data = "search_all_filter" if category == "filter" else "search_all_oil"
-    
-    keyboard_buttons.insert(0, [InlineKeyboardButton(text=all_text, callback_data=all_data)])
-    keyboard_buttons.append([InlineKeyboardButton(text="⬅️ Назад к категориям", callback_data="back_to_categories")])
-    return InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
-
-def get_back_keyboard():
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔄 Главное меню", callback_data="back_to_categories")]
-    ])
-
-def get_brand_selected_keyboard(brand_key):
-    """Клавиатура с кнопкой скачивания прайса конкретного бренда."""
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📥 Скачать прайс-лист", callback_data=f"dl_price_{brand_key}")],
-        [InlineKeyboardButton(text="🔄 Главное меню", callback_data="back_to_categories")]
-    ])
 
 def search_in_file(filepath, query, brand_key):
     """Умный поиск, который считывает персональную карту колонок бренда из config.py."""

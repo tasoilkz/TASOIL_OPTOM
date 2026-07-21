@@ -4,6 +4,9 @@
 
 BOT_TOKEN = "8901258133:AAFY3ZEEacAoih9qhFvvbNSxc7wMVYbapwk"
 
+# ID администратора для получения заявок
+ADMIN_CHAT_ID = 1889997265
+
 PRICE_CATEGORIES = {
     "oil": {
         "toyota": {
