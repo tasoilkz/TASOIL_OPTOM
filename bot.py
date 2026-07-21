@@ -8,7 +8,7 @@ from aiogram.fsm.state import default_state
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import FSInputFile, CallbackQuery
-from aiogram.exceptions import TelegramBadRequest
+from aiogram.exceptions import TelegramBadRequest, TelegramConflictError
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 
@@ -256,7 +256,7 @@ async def handle_voice_warning(message: types.Message):
         parse_mode="Markdown"
     )
 
-# --- ОБЩИЙ ОБРАБОТЧИК ТЕКСТОВЫХ СООБЩЕНИЙ (Сработает только если пользователь НЕ оформляет заказ) ---
+# --- ОБЩИЙ ОБРАБОТЧИК ТЕКСТОВЫХ СООБЩЕНИЙ ---
 @dp.message(StateFilter(default_state))
 async def handle_message(message: types.Message):
     if not message.text:
@@ -345,10 +345,19 @@ async def main():
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
 
-    # Удаляем вебхуки и запускаем бота
-    await bot.delete_webhook(drop_pending_updates=True)
-    print("🚀 Бот TASOIL успешно запущен!")
-    await dp.start_polling(bot)
+    # Основной цикл запуска бота с автопереподключением при конфликтах
+    while True:
+        try:
+            # Удаляем вебхуки и запускаем polling
+            await bot.delete_webhook(drop_pending_updates=True)
+            print("🚀 Бот TASOIL успешно запущен!")
+            await dp.start_polling(bot)
+        except TelegramConflictError:
+            print("⚠️ Обнаружен конфликт сессий (старый процесс еще активен). Ждем 5 секунд и повторяем попытку...")
+            await asyncio.sleep(5)
+        except Exception as e:
+            print(f"⚠️ Произошла ошибка: {e}. Перезапуск через 5 секунд...")
+            await asyncio.sleep(5)
 
 if __name__ == "__main__":
     try:
