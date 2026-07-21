@@ -3,13 +3,13 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import ReplyKeyboardRemove, CallbackQuery
 
-from config import ADMIN_CHAT_ID, CONTACT_TEXT
+from config import ADMIN_CHAT_ID, CONTACT_TEXT, PRICE_CATEGORIES
 from keyboards import (
     get_cancel_keyboard,
     get_company_keyboard,
     get_address_keyboard,
     get_phone_keyboard,
-    get_main_menu_keyboard  # 👈 Импорт главного меню
+    get_main_menu_keyboard  # Импорт главного меню
 )
 
 order_router = Router()
@@ -98,7 +98,7 @@ async def set_pickup_address(callback: CallbackQuery, state: FSMContext):
     await state.set_state(OrderForm.waiting_for_items)
     await callback.message.answer(
         "Шаг 5 из 5: **Перечислите список нужных товаров**\n\n"
-        "Укажите наименования, артикулы, вязкость или количество *(например: Liqui Moly 5W-30 — 2 бочки, SM106 — 10 шт)*:",
+        "Укажите бренд, наименование, объем или количество *(например: ZIC 5W-30 4л — 2 канистры, SM106 — 10 шт)*:",
         reply_markup=ReplyKeyboardRemove(),
         parse_mode="Markdown"
     )
@@ -110,7 +110,7 @@ async def process_address(message: types.Message, state: FSMContext):
     await state.set_state(OrderForm.waiting_for_items)
     await message.answer(
         "Шаг 5 из 5: **Перечислите список нужных товаров**\n\n"
-        "Укажите наименования, артикулы, вязкость или количество *(например: Liqui Moly 5W-30 — 2 бочки, SM106 — 10 шт)*:",
+        "Укажите бренд, наименование, объем или количество *(например: ZIC 5W-30 4л — 2 канистры, SM106 — 10 шт)*:",
         reply_markup=ReplyKeyboardRemove(),
         parse_mode="Markdown"
     )
@@ -118,23 +118,43 @@ async def process_address(message: types.Message, state: FSMContext):
 @order_router.message(OrderForm.waiting_for_items)
 async def process_items(message: types.Message, state: FSMContext):
     order_text = message.text.strip()
+    order_lower = order_text.lower()
     
-    # 1. Проверяем минимальную длину текста заказа
+    # 1. Проверяем минимальную длину текста заказа[cite: 4]
     if len(order_text) < 3:
         await message.answer(
-            "⚠️ Пожалуйста, напишите ваш заказ более подробно (укажите наименование/артикул и количество):\n\n"
-            "*(Например: `SM106 — 2 шт` или `ZIC 5W-30 4л — 1 канистра`)*",
+            "⚠️ Пожалуйста, напишите ваш заказ более подробно (укажите бренд, название товара и количество):\n\n"
+            "*(Например: `ZIC 5W-30 4л — 2 канистры`)*",
             parse_mode="Markdown"
         )
         return
 
-    # 2. Проверяем наличие цифр (цифры нужны для артикулов, объемов и количества штук)
+    # 2. Проверяем наличие цифр (цифры нужны для объема канистры или количества штук)[cite: 4]
     has_numbers = any(char.isdigit() for char in order_text)
     
     if not has_numbers:
         await message.answer(
-            "⚠️ В вашем заказе **отсутствуют цифры** (не указан артикул, объем или количество).\n\n"
-            "Пожалуйста, уточните детали заказа (например: `Фильтр Tokiro — 5 шт` или `Масло 5W-30 4л`):",
+            "⚠️ В вашем заказе **отсутствуют цифры** (не указан объем или количество штук).\n\n"
+            "Пожалуйста, уточните детали заказа (например: `ZIC 5W-30 4л — 2 шт`):",
+            parse_mode="Markdown"
+        )
+        return
+
+    # 3. Собираем все известные бренды из config.py для проверки
+    all_brands = []
+    for cat in PRICE_CATEGORIES.values():
+        for brand_key, brand_info in cat.items():
+            all_brands.append(brand_key.lower())
+            if isinstance(brand_info, dict) and "name" in brand_info:
+                all_brands.append(str(brand_info["name"]).lower())
+
+    # Проверяем, указал ли клиент марку/бренд
+    brand_found = any(brand in order_lower for brand in all_brands)
+
+    if not brand_found:
+        await message.answer(
+            "⚠️ Вы указали параметры, но **забыли написать бренд** (марку масла или товара).\n\n"
+            "Пожалуйста, укажите бренд (например: `ZIC 5W-30 4л — 2 шт`):",
             parse_mode="Markdown"
         )
         return
