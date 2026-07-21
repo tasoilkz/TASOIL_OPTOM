@@ -1,7 +1,7 @@
 from aiogram import Router, types, F
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import ReplyKeyboardRemove, CallbackQuery
+from aiogram.types import ReplyKeyboardRemove, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 
 from config import ADMIN_CHAT_ID, CONTACT_TEXT, PRICE_CATEGORIES
 from keyboards import (
@@ -9,7 +9,7 @@ from keyboards import (
     get_company_keyboard,
     get_address_keyboard,
     get_phone_keyboard,
-    get_main_menu_keyboard  # Импорт главного меню
+    get_main_menu_keyboard
 )
 
 order_router = Router()
@@ -20,6 +20,14 @@ class OrderForm(StatesGroup):
     waiting_for_phone = State()
     waiting_for_address = State()
     waiting_for_items = State()
+
+# Вспомогательная кнопка возврата в меню при ошибках ввода
+def get_back_to_menu_keyboard():
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🏠 Вернуться в главное меню", callback_data="cancel_order")]
+        ]
+    )
 
 @order_router.callback_query(F.data == "start_order")
 async def start_order_process(callback: CallbackQuery, state: FSMContext):
@@ -34,7 +42,6 @@ async def start_order_process(callback: CallbackQuery, state: FSMContext):
 @order_router.callback_query(F.data == "cancel_order")
 async def cancel_order(callback: CallbackQuery, state: FSMContext):
     await state.clear()
-    # Возвращаем Главное меню при отмене
     await callback.message.answer(
         "❌ Оформление заявки отменено.", 
         reply_markup=get_main_menu_keyboard(),
@@ -119,7 +126,7 @@ async def process_address(message: types.Message, state: FSMContext):
 async def process_items(message: types.Message, state: FSMContext):
     raw_text = message.text.strip()
     
-    # Исправляем русскую букву «В» (и «в») в вязкости на английскую «W», чтобы бот понимал «5В30» -> «5W30»
+    # Исправляем русскую букву «В» (и «в») в вязкости на английскую «W»
     normalized_text = (
         raw_text.replace("5В", "5W")
                 .replace("10В", "10W")
@@ -137,17 +144,19 @@ async def process_items(message: types.Message, state: FSMContext):
         await message.answer(
             "⚠️ Пожалуйста, напишите ваш заказ более подробно (укажите бренд, название товара и количество):\n\n"
             "*(Например: `Yacco 5W-30 4л — 2 канистры`)*",
+            reply_markup=get_back_to_menu_keyboard(),
             parse_mode="Markdown"
         )
         return
 
-    # 2. Проверяем наличие цифр (цифры нужны для объема канистры или количества штук)
+    # 2. Проверяем наличие цифр
     has_numbers = any(char.isdigit() for char in normalized_text)
     
     if not has_numbers:
         await message.answer(
             "⚠️ В вашем заказе **отсутствуют цифры** (не указан объем или количество штук).\n\n"
             "Пожалуйста, уточните детали заказа (например: `Yacco 5W-30 4л — 2 шт`):",
+            reply_markup=get_back_to_menu_keyboard(),
             parse_mode="Markdown"
         )
         return
@@ -173,11 +182,12 @@ async def process_items(message: types.Message, state: FSMContext):
         await message.answer(
             "⚠️ Вы указали параметры, но **забыли написать бренд** (марку масла или товара).\n\n"
             "Пожалуйста, укажите бренд (например: `Yacco 5W-30 4л — 2 шт`):",
+            reply_markup=get_back_to_menu_keyboard(),
             parse_mode="Markdown"
         )
         return
 
-    # Сохраняем в заявку исходный текст клиента (или с исправленной буквой W, чтобы админу было привычнее)
+    # Если всё указано корректно, формируем и отправляем заявку администратору
     order_data = await state.get_data()
     user_info = message.from_user
     username = f"@{user_info.username}" if user_info.username else "нет username"
