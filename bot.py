@@ -5,6 +5,8 @@ from aiohttp import web
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command, StateFilter
 from aiogram.fsm.state import default_state
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import FSInputFile, CallbackQuery
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.client.default import DefaultBotProperties
@@ -28,7 +30,9 @@ from keyboards import (
 
 # Инициализация бота с токеном из config.py
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN))
-dp = Dispatcher()
+
+# Инициализируем диспетчер с явным хранилищем состояний
+dp = Dispatcher(storage=MemoryStorage())
 
 # Подключаем роутер акций Liqui Moly и роутер оформления заказов
 dp.include_router(promo_router)
@@ -115,12 +119,14 @@ def search_in_file(filepath, query, brand_key):
     return results
 
 @dp.message(Command("start"))
-async def cmd_start(message: types.Message):
+async def cmd_start(message: types.Message, state: FSMContext):
+    await state.clear()
     user_selection.pop(message.from_user.id, None)
     await message.answer("Привет! Я бот-помощник магазина TASOIL.\n\nЧто вы ищете?", reply_markup=get_main_menu_keyboard())
 
 @dp.callback_query(lambda c: c.data == "back_to_categories")
-async def back_to_categories(callback: CallbackQuery):
+async def back_to_categories(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
     user_selection.pop(callback.from_user.id, None)
     await safe_edit_text(callback, "Что вы ищете?", reply_markup=get_main_menu_keyboard())
     await callback.answer()
