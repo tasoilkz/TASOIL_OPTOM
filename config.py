@@ -38,6 +38,13 @@ PRICE_CATEGORIES = {
             "warning": "",
             "desc": "Качественные фильтрующие элементы Tokiro для надёжной защиты двигателя.",
             "cols": {"art": 0, "name": 1, "cross": 2, "price": 3}
+        },
+        "ev_filters": {  # 👈 НОВЫЙ ПРАЙС ДЛЯ ЭЛЕКТРОМОБИЛЕЙ И ГИБРИДОВ
+            "name": "⚡️ Электромобили (Tesla, Zeekr, Lixiang)",
+            "file": "files/Prais_elekro.xlsx",
+            "warning": "",
+            "desc": "Оригинальные и аналоги фильтров для популярных электромобилей и гибридов.",
+            "cols": {"art": 1, "name": 2, "vol": 4, "price": 5}
         }
     }
 }
