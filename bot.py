@@ -3,7 +3,8 @@ import os
 import pandas as pd
 from aiohttp import web
 from aiogram import Bot, Dispatcher, types, F
-from aiogram.filters import Command
+from aiogram.filters import Command, StateFilter
+from aiogram.fsm.state import default_state
 from aiogram.types import FSInputFile, CallbackQuery
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.client.default import DefaultBotProperties
@@ -249,8 +250,8 @@ async def handle_voice_warning(message: types.Message):
         parse_mode="Markdown"
     )
 
-# --- ОБЩИЙ ОБРАБОТЧИК ТЕКСТОВЫХ СООБЩЕНИЙ ---
-@dp.message()
+# --- ОБЩИЙ ОБРАБОТЧИК ТЕКСТОВЫХ СООБЩЕНИЙ (Сработает только если пользователь НЕ оформляет заказ) ---
+@dp.message(StateFilter(default_state))
 async def handle_message(message: types.Message):
     if not message.text:
         await message.answer("Пожалуйста, отправьте текстовый запрос (артикул или название товара).", reply_markup=get_back_keyboard())
