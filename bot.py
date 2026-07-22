@@ -1,5 +1,6 @@
 import asyncio
 import os
+import threading
 import pandas as pd
 from aiohttp import web
 from aiogram import Bot, Dispatcher, types, F
@@ -27,6 +28,23 @@ from keyboards import (
     get_back_keyboard,
     get_brand_selected_keyboard
 )
+
+# --- ВЕБ-СЕРВЕР ДЛЯ RENDER И UPTIMEROBOT (ЧЕРЕЗ ПОТОКИ) ---
+routes = web.RouteTableDef()
+
+@routes.get("/")
+async def hello(request):
+    return web.Response(text="Bot is running!")
+
+def run_web_server():
+    app = web.Application()
+    app.add_routes(routes)
+    port = int(os.environ.get("PORT", 10000))
+    web.run_app(app, host="0.0.0.0", port=port, print=None)
+
+# Запускаем веб-сервер в фоновом потоке сразу при старте файла
+threading.Thread(target=run_web_server, daemon=True).start()
+# ---------------------------------------------------------
 
 # Инициализация бота с токеном из config.py[cite: 1]
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN))
@@ -70,7 +88,6 @@ def search_in_file(filepath, query, brand_key):
         df = pd.read_excel(filepath)
         clean_query = query.lower().replace("-", "").replace(" ", "")
         
-        # Находим настройки колонок для текущего бренда
         brand_cfg = None
         for cat in PRICE_CATEGORIES.values():
             if brand_key in cat:
@@ -182,7 +199,6 @@ async def process_brand_selection(callback: CallbackQuery):
     warning_text = ""
     description_text = ""
     
-    # Считываем данные из config.py
     for cat in PRICE_CATEGORIES.values():
         if brand_key in cat:
             brand_info = cat[brand_key]
@@ -312,7 +328,6 @@ async def handle_message(message: types.Message):
         
         await message.answer(response, reply_markup=get_back_keyboard(), parse_mode="Markdown")
 
-        # Проверяем наличие фото
         if os.path.exists(PHOTOS_DIR):
             prod_name = str(all_found_items[0]["product"]).lower()
             photo_path = next((os.path.join(PHOTOS_DIR, f) for f in os.listdir(PHOTOS_DIR) if f.split(".")[0].lower() in prod_name), None)
@@ -331,24 +346,10 @@ async def handle_message(message: types.Message):
             parse_mode="Markdown"
         )
 
-# Функция для ответа облачному серверу Render (Health Check)[cite: 1]
-async def handle_ping(request):
-    return web.Response(text="Bot is running!")
-
 async def main():
-    # Запускаем фоновый веб-сервер для проверки работоспособности на Render[cite: 1]
-    app = web.Application()
-    app.router.add_get("/", handle_ping)
-    runner = web.AppRunner(app)
-    await runner.setup()
-    port = int(os.environ.get("PORT", 10000))
-    site = web.TCPSite(runner, "0.0.0.0", port)
-    await site.start()
-
     # Основной цикл запуска бота с автопереподключением при конфликтах[cite: 1]
     while True:
         try:
-            # Удаляем вебхуки и запускаем polling
             await bot.delete_webhook(drop_pending_updates=True)
             print("🚀 Бот TASOIL успешно запущен!")
             await dp.start_polling(bot)
