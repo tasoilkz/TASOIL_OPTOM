@@ -1,6 +1,5 @@
 import asyncio
 import os
-import threading
 import pandas as pd
 from aiohttp import web
 from aiogram import Bot, Dispatcher, types, F
@@ -29,37 +28,19 @@ from keyboards import (
     get_brand_selected_keyboard
 )
 
-# --- ВЕБ-СЕРВЕР ДЛЯ RENDER И UPTIMEROBOT (ЧЕРЕЗ ПОТОКИ) ---
-routes = web.RouteTableDef()
-
-@routes.get("/")
-async def hello(request):
-    return web.Response(text="Bot is running!")
-
-def run_web_server():
-    app = web.Application()
-    app.add_routes(routes)
-    port = int(os.environ.get("PORT", 10000))
-    web.run_app(app, host="0.0.0.0", port=port, print=None)
-
-# Запускаем веб-сервер в фоновом потоке сразу при старте файла
-threading.Thread(target=run_web_server, daemon=True).start()
-# ---------------------------------------------------------
-
-# Инициализация бота с токеном из config.py[cite: 1]
+# Инициализация бота с токеном из config.py
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN))
 
 # Инициализируем диспетчер с явным хранилищем состояний[cite: 1]
 dp = Dispatcher(storage=MemoryStorage())
 
-# Подключаем роутер акций Liqui Moly и роутер оформления заказов[cite: 1]
+# Подключаем роутеры[cite: 1]
 dp.include_router(promo_router)
 dp.include_router(order_router)
 
 user_selection = {}
 
 async def safe_edit_text(callback: CallbackQuery, text: str, reply_markup=None, parse_mode="Markdown"):
-    """Безопасное редактирование сообщений (предотвращает ошибки редактирования)."""[cite: 1]
     try:
         await callback.message.edit_text(text, reply_markup=reply_markup, parse_mode=parse_mode)
     except TelegramBadRequest as e:
@@ -79,7 +60,6 @@ async def safe_edit_text(callback: CallbackQuery, text: str, reply_markup=None, 
         await callback.message.answer(text, reply_markup=reply_markup, parse_mode=parse_mode)
 
 def search_in_file(filepath, query, brand_key):
-    """Умный поиск, который считывает персональную карту колонок бренда из config.py."""[cite: 1]
     results = []
     if not os.path.exists(filepath):
         print(f"⚠️ Файл не найден по пути: {filepath}")
@@ -148,7 +128,6 @@ async def back_to_categories(callback: CallbackQuery, state: FSMContext):
     await safe_edit_text(callback, "Что вы ищете?", reply_markup=get_main_menu_keyboard())
     await callback.answer()
 
-# --- РАЗДЕЛ ПЕРЧАТКИ И СПЕЦОДЕЖДА ---
 @dp.callback_query(lambda c: c.data == "cat_gloves")
 async def process_gloves_menu(callback: CallbackQuery):
     await send_gloves_info(callback)
@@ -157,7 +136,6 @@ async def process_gloves_menu(callback: CallbackQuery):
 async def process_gloves_doc_download(callback: CallbackQuery):
     await send_gloves_file(callback)
 
-# --- РАЗДЕЛЫ МАСЛА И ФИЛЬТРЫ ---
 @dp.callback_query(lambda c: c.data in ["cat_oil", "cat_filter"])
 async def process_category_selection(callback: CallbackQuery):
     category = "oil" if callback.data == "cat_oil" else "filter"
@@ -220,9 +198,7 @@ async def process_brand_selection(callback: CallbackQuery):
 
 @dp.callback_query(lambda c: c.data.startswith("dl_price_"))
 async def process_download_price(callback: CallbackQuery):
-    """Обработка скачивания прайса по нажатию на кнопку."""[cite: 1]
     brand_key = callback.data.replace("dl_price_", "")
-    
     cat_info = None
     for cat in PRICE_CATEGORIES.values():
         if brand_key in cat:
@@ -263,7 +239,6 @@ async def cmd_price(message: types.Message):
             
     await message.answer(f"Для заказа:\n{CONTACT_TEXT}", reply_markup=get_back_keyboard(), parse_mode="Markdown")
 
-# --- ОБРАБОТКА ГОЛОСОВЫХ СООБЩЕНИЙ ---
 @dp.message(F.voice)
 async def handle_voice_warning(message: types.Message):
     await message.answer(
@@ -272,7 +247,6 @@ async def handle_voice_warning(message: types.Message):
         parse_mode="Markdown"
     )
 
-# --- ОБЩИЙ ОБРАБОТЧИК ТЕКСТОВЫХ СООБЩЕНИЙ ---
 @dp.message(StateFilter(default_state))
 async def handle_message(message: types.Message):
     if not message.text:
@@ -307,25 +281,20 @@ async def handle_message(message: types.Message):
     if all_found_items:
         safe_query = clean_markdown(message.text)
         response = f"📋 **Результаты по запросу `{safe_query}`:**\n\n"
-        
         MAX_LENGTH = 3800 
         
         for item in all_found_items:
             vol_text = f" ({clean_markdown(item['vol'])})" if item['vol'] else ""
-            
             line = (
                 f"🔹 **{item['brand_name']}** {clean_markdown(item['name'])}{vol_text}\n"
                 f"🏷 **{item['price']}** · `Арт: {clean_markdown(item['art'])}`\n\n"
             )
-            
             if len(response) + len(line) + len(CONTACT_TEXT) > MAX_LENGTH:
-                response += "⚠️ *Показана только часть результатов, так как список слишком длинный.*\n\n"
+                response += "⚠️ *Показана только часть результатов.*\n\n"
                 break
-                
             response += line
 
         response += f"Для заказа:\n{CONTACT_TEXT}"
-        
         await message.answer(response, reply_markup=get_back_keyboard(), parse_mode="Markdown")
 
         if os.path.exists(PHOTOS_DIR):
@@ -346,18 +315,32 @@ async def handle_message(message: types.Message):
             parse_mode="Markdown"
         )
 
+# Обработчик для веб-сервера Render
+async def handle_ping(request):
+    return web.Response(text="Bot is running!")
+
 async def main():
-    # Основной цикл запуска бота с автопереподключением при конфликтах[cite: 1]
+    # 1. Запускаем мини-веб-сервер внутри async цикла (чтобы Render видел открытый порт)
+    app = web.Application()
+    app.router.add_get("/", handle_ping)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    port = int(os.environ.get("PORT", 10000))
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+    print(f"🌐 Веб-сервер запущен на порту {port}")
+
+    # 2. Основной цикл бота с подавлением конфликтов
     while True:
         try:
             await bot.delete_webhook(drop_pending_updates=True)
             print("🚀 Бот TASOIL успешно запущен!")
             await dp.start_polling(bot)
         except TelegramConflictError:
-            print("⚠️ Обнаружен конфликт сессий (старый процесс еще активен). Ждем 5 секунд и повторяем попытку...")
+            print("⚠️ Конфликт сессий. Ждем 5 секунд...")
             await asyncio.sleep(5)
         except Exception as e:
-            print(f"⚠️ Произошла ошибка: {e}. Перезапуск через 5 секунд...")
+            print(f"⚠️ Ошибка: {e}. Перезапуск через 5 секунд...")
             await asyncio.sleep(5)
 
 if __name__ == "__main__":
