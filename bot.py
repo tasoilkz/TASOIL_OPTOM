@@ -28,20 +28,20 @@ from keyboards import (
     get_brand_selected_keyboard
 )
 
-# Инициализация бота с токеном из config.py
+# Инициализация бота с токеном из config.py[cite: 1]
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN))
 
-# Инициализируем диспетчер с явным хранилищем состояний
+# Инициализируем диспетчер с явным хранилищем состояний[cite: 1]
 dp = Dispatcher(storage=MemoryStorage())
 
-# Подключаем роутер акций Liqui Moly и роутер оформления заказов
+# Подключаем роутер акций Liqui Moly и роутер оформления заказов[cite: 1]
 dp.include_router(promo_router)
 dp.include_router(order_router)
 
 user_selection = {}
 
 async def safe_edit_text(callback: CallbackQuery, text: str, reply_markup=None, parse_mode="Markdown"):
-    """Безопасное редактирование сообщений (предотвращает ошибки редактирования)."""
+    """Безопасное редактирование сообщений (предотвращает ошибки редактирования)."""[cite: 1]
     try:
         await callback.message.edit_text(text, reply_markup=reply_markup, parse_mode=parse_mode)
     except TelegramBadRequest as e:
@@ -61,7 +61,7 @@ async def safe_edit_text(callback: CallbackQuery, text: str, reply_markup=None, 
         await callback.message.answer(text, reply_markup=reply_markup, parse_mode=parse_mode)
 
 def search_in_file(filepath, query, brand_key):
-    """Умный поиск, который считывает персональную карту колонок бренда из config.py."""
+    """Умный поиск, который считывает персональную карту колонок бренда из config.py."""[cite: 1]
     results = []
     if not os.path.exists(filepath):
         print(f"⚠️ Файл не найден по пути: {filepath}")
@@ -204,7 +204,7 @@ async def process_brand_selection(callback: CallbackQuery):
 
 @dp.callback_query(lambda c: c.data.startswith("dl_price_"))
 async def process_download_price(callback: CallbackQuery):
-    """Обработка скачивания прайса по нажатию на кнопку."""
+    """Обработка скачивания прайса по нажатию на кнопку."""[cite: 1]
     brand_key = callback.data.replace("dl_price_", "")
     
     cat_info = None
@@ -331,21 +331,21 @@ async def handle_message(message: types.Message):
             parse_mode="Markdown"
         )
 
-# Функция для ответа облачному серверу Render (Health Check)
+# Функция для ответа облачному серверу Render (Health Check)[cite: 1]
 async def handle_ping(request):
     return web.Response(text="Bot is running!")
 
 async def main():
-    # Запускаем фоновый веб-сервер для проверки работоспособности на Render
+    # Запускаем фоновый веб-сервер для проверки работоспособности на Render[cite: 1]
     app = web.Application()
     app.router.add_get("/", handle_ping)
     runner = web.AppRunner(app)
     await runner.setup()
-    port = int(os.environ.get("PORT", 8080))
+    port = int(os.environ.get("PORT", 10000))
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
 
-    # Основной цикл запуска бота с автопереподключением при конфликтах
+    # Основной цикл запуска бота с автопереподключением при конфликтах[cite: 1]
     while True:
         try:
             # Удаляем вебхуки и запускаем polling
@@ -363,4 +363,4 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
-        print("🛑 Бот остановлен.")
+        print("🛑 Бот остановлен.")[cite: 1]
